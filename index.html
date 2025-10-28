@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DTC-433 QA Lead Testing Site</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+      :root { --bg:#0b1320; --panel:#121a2b; --ink:#e9eefc; --muted:#a9b3c9; --accent:#5aa3ff; --ok:#2ecc71; --warn:#f39c12; --err:#e74c3c; }
+      html,body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink); }
+      .wrap { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+      .card { background: var(--panel); border: 1px solid #1f2a44; border-radius: 14px; padding: 18px; box-shadow: 0 6px 20px rgb(0 0 0 / 18%); }
+      h1,h2 { margin: 0 0 12px; }
+      h1 { font-size: 20px; }
+      h2 { font-size: 16px; color: var(--muted); }
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+      .row { display:flex; gap:12px; flex-wrap:wrap; }
+      .col-6 { grid-column: span 6; } .col-4 { grid-column: span 4; } .col-8 { grid-column: span 8; } .col-12 { grid-column: span 12; }
+      label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+      input, select, textarea { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #26365f; background:#0e1730; color:var(--ink); outline:none; }
+      textarea { min-height: 90px; resize: vertical; }
+      .btn { appearance:none; border:1px solid #2a3e6f; background:#11204a; color:#dbe7ff; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; }
+      .btn:hover { border-color:#395694; }
+      .btn.primary { background: linear-gradient(180deg, #2f66ff, #1254ff); border-color:#1e46d6; }
+      .btn.ghost { background: transparent; }
+      .hint { font-size:12px; color:var(--muted); }
+      .pill { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:#0f1a33; border:1px solid #26365f; }
+      .status { font-size:12px; margin-left:auto; }
+      .status.ok { color: var(--ok); } .status.warn { color:var(--warn); } .status.err { color:var(--err); }
+      .hr { height:1px; background:#1f2a44; margin:16px 0; }
+      .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0a1022; border:1px solid #1f2a44; padding:2px 6px; border-radius:6px; }
+      .seg { display:flex; gap:8px; flex-wrap:wrap; }
+      .seg .btn { padding:6px 10px; }
+      .footer { opacity:.75; font-size:12px; text-align:center; margin-top:18px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <!-- CONFIG PANEL -->
+  <div class="card" id="configCard">
+    <div class="row" style="align-items:center;">
+      <h1>DTC-433 QA Lead Testing Site</h1>
+      <span id="captureStatus" class="status warn">Capture SDK not initialized</span>
+    </div>
+    <div class="grid" style="margin-top:10px;">
+      <div class="col-4">
+        <label for="cfg-scid">scid</label>
+        <input id="cfg-scid" placeholder="e.g., 3871830" />
+      </div>
+      <div class="col-8">
+        <label for="cfg-siteid">siteid</label>
+        <input id="cfg-siteid" placeholder="e.g., 427e4e5f-5317-42d8-825c-765b49e43028" />
+      </div>
+      <div class="col-6">
+        <label for="cfg-gmaid">gmaid</label>
+        <select id="cfg-gmaid">
+          <option value="USA_172716" selected>USA_172716 (default)</option>
+          <option value="USA_123456">USA_123456 (example)</option>
+          <option value="CAN_000001">CAN_000001 (example)</option>
+        </select>
+        <div class="hint">You can add/remove options here as your test matrix evolves.</div>
+      </div>
+      <div class="col-3">
+        <label for="cfg-env">environment</label>
+        <select id="cfg-env">
+          <option value="qa" selected>qa</option>
+          <option value="stage">stage</option>
+          <option value="prod">prod</option>
+        </select>
+      </div>
+      <div class="col-3" style="display:flex; align-items:flex-end; gap:8px;">
+        <button class="btn" id="applyCfgBtn" title="Update URL & re-init capture">Apply config</button>
+        <button class="btn ghost" id="resetCfgBtn" title="Reset to defaults">Reset</button>
+      </div>
+    </div>
+    <div class="hr"></div>
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="seg" role="tablist" aria-label="Lead Type">
+        <span class="pill">Lead type:</span>
+        <button class="btn" data-leadtype="web" aria-pressed="true">Web Form</button>
+        <button class="btn" data-leadtype="call" aria-pressed="false">Call</button>
+        <button class="btn" data-leadtype="chatbot" aria-pressed="false">Chatbot</button>
+      </div>
+      <div class="hint">Config persists in the page URL so you can share a ready-to-test link with QA/Product.</div>
+    </div>
+  </div>
+
+  <div style="height:16px;"></div>
+
+  <!-- LEAD FORM -->
+  <form class="card" id="leadForm" novalidate>
+    <h2>Lead Form</h2>
+    <div class="grid">
+      <div class="col-6">
+        <label for="first_name">First Name</label>
+        <input id="first_name" name="first_name" autocomplete="given-name" />
+      </div>
+      <div class="col-6">
+        <label for="last_name">Last Name</label>
+        <input id="last_name" name="last_name" autocomplete="family-name" />
+      </div>
+
+      <div class="col-6">
+        <label for="email">Email <span class="hint">(email OR phone required)</span></label>
+        <input id="email" name="email" type="email" autocomplete="email" />
+        <!-- Mirror into xhr_form_email for Capture variants that read that key -->
+        <input id="xhr_form_email" name="xhr_form_email" type="hidden" />
+      </div>
+      <div class="col-6">
+        <label for="phone">Phone <span class="hint">(email OR phone required)</span></label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" />
+        <!-- Mirror into xhr_form_phone for Capture variants that read that key -->
+        <input id="xhr_form_phone" name="xhr_form_phone" type="hidden" />
+      </div>
+
+      <div class="col-12"><div class="hr"></div></div>
+
+      <div class="col-8">
+        <label for="address1">Address 1</label>
+        <input id="address1" name="address1" autocomplete="address-line1" />
+      </div>
+      <div class="col-4">
+        <label for="address2">Address 2</label>
+        <input id="address2" name="address2" autocomplete="address-line2" />
+      </div>
+
+      <div class="col-5">
+        <label for="city">City</label>
+        <input id="city" name="city" autocomplete="address-level2" />
+      </div>
+      <div class="col-3">
+        <label for="state">State/Province</label>
+        <input id="state" name="state" maxlength="32" />
+      </div>
+      <div class="col-4">
+        <label for="postal_code">ZIP/Postal Code</label>
+        <input id="postal_code" name="postal_code" autocomplete="postal-code" />
+      </div>
+
+      <div class="col-12">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" placeholder="Free-form text to help identify the test lead in LIPS…"></textarea>
+      </div>
+
+      <div class="col-12 row" style="align-items:center; justify-content:space-between;">
+        <div class="hint">On submit, we’ll call the Capture API if available; otherwise we’ll log a payload (“dry-run”).</div>
+        <div class="row" style="gap:8px;">
+          <button type="button" class="btn" id="fillDemo">Fill demo data</button>
+          <button type="submit" class="btn primary">Create Lead</button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="footer">
+    Need another variant (e.g., call-only, chatbot-only, or different <span class="kbd">scid</span>/<span class="kbd">siteid</span>)? Duplicate this page and adjust defaults.
+  </div>
+</div>
+
+<!-- =========================
+     CAPTURE BOOTSTRAP (PLACEHOLDER)
+     =========================
+     TODO: Paste the official Capture embed snippet here.
+     For example, if they provide a <script src="...capture-sdk.js">, include it,
+     and if they require window.Capture.init({ scid, siteid, gmaid, env }), call it from reinitCapture().
+-->
+<!-- <script src="https://example.cdn/capture-sdk.min.js"></script> -->
+
+<script>
+  // Small utility to read/write query params (so config survives refresh/share)
+  const qs = new URLSearchParams(location.search);
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  // Default config (from Slack message)
+  const DEFAULTS = {
+    scid: "3871830",
+    siteid: "427e4e5f-5317-42d8-825c-765b49e43028",
+    gmaid: "USA_172716",
+    env: "qa",
+    leadtype: "web", // web | call | chatbot
+  };
+
+  function getCfg() {
+    return {
+      scid: $("#cfg-scid").value.trim(),
+      siteid: $("#cfg-siteid").value.trim(),
+      gmaid: $("#cfg-gmaid").value,
+      env: $("#cfg-env").value,
+      leadtype: document.querySelector('[data-leadtype][aria-pressed="true"]')?.dataset.leadtype || "web",
+    };
+  }
+
+  function applyCfgToURL(cfg) {
+    const newQs = new URLSearchParams(location.search);
+    Object.entries(cfg).forEach(([k, v]) => newQs.set(k, v));
+    history.replaceState({}, "", `${location.pathname}?${newQs.toString()}`);
+  }
+
+  function setStatus(text, cls = "warn") {
+    const el = $("#captureStatus");
+    el.textContent = text;
+    el.className = `status ${cls}`;
+  }
+
+  function hydrateFormFromQS() {
+    const cfg = { ...DEFAULTS };
+    ["scid","siteid","gmaid","env","leadtype"].forEach(k => {
+      if (qs.get(k)) cfg[k] = qs.get(k);
+    });
+    $("#cfg-scid").value = cfg.scid;
+    $("#cfg-siteid").value = cfg.siteid;
+    $("#cfg-gmaid").value = cfg.gmaid;
+    $("#cfg-env").value = cfg.env;
+    // toggle buttons
+    $$('.seg .btn[data-leadtype]').forEach(b => {
+      b.setAttribute("aria-pressed", b.dataset.leadtype === cfg.leadtype ? "true" : "false");
+    });
+    applyCfgToURL(cfg);
+  }
+
+  // Mirror fields to xhr_form_* variants (guards against the mismatch issue you saw)
+  function wireMirrors() {
+    const mirrorPairs = [
+      ["#email", "#xhr_form_email"],
+      ["#phone", "#xhr_form_phone"],
+    ];
+    mirrorPairs.forEach(([srcSel, dstSel]) => {
+      const src = $(srcSel), dst = $(dstSel);
+      if (src && dst) src.addEventListener("input", () => { dst.value = src.value; });
+    });
+  }
+
+  // Build a canonical payload we can pass to Capture, or log in dry-run mode
+  function buildPayload() {
+    const cfg = getCfg();
+    const payload = {
+      meta: { ...cfg, ts: new Date().toISOString() },
+      lead: {
+        first_name: $("#first_name").value.trim(),
+        last_name: $("#last_name").value.trim(),
+        email: $("#email").value.trim(),
+        phone: $("#phone").value.trim(),
+        address1: $("#address1").value.trim(),
+        address2: $("#address2").value.trim(),
+        city: $("#city").value.trim(),
+        state: $("#state").value.trim(),
+        postal_code: $("#postal_code").value.trim(),
+        notes: $("#notes").value.trim(),
+        channel: cfg.leadtype, // "web" | "call" | "chatbot"
+      }
+    };
+    return payload;
+  }
+
+  // Validation: require email OR phone
+  function validateLead(payload) {
+    const hasEmail = !!payload.lead.email;
+    const hasPhone = !!payload.lead.phone;
+    if (!hasEmail && !hasPhone) {
+      alert("Please provide at least an Email OR a Phone number.");
+      return false;
+    }
+    return true;
+  }
+
+  // Reinitialize Capture with current config
+  async function reinitCapture() {
+    const cfg = getCfg();
+    applyCfgToURL(cfg);
+    try {
+      // TODO: Replace with your SDK's real init/reinit call.
+      // Example (fictional):
+      // await window.Capture.init({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
+      if (window.Capture && typeof window.Capture.init === "function") {
+        await window.Capture.init({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
+        setStatus("Capture initialized", "ok");
+      } else if (window.Capture && typeof window.Capture.reinitialize === "function") {
+        await window.Capture.reinitialize({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
+        setStatus("Capture reinitialized", "ok");
+      } else {
+        setStatus("Capture SDK not found — dry-run mode", "warn");
+      }
+    } catch (e) {
+      console.error("Capture init error", e);
+      setStatus("Capture init failed — check console", "err");
+    }
+  }
+
+  // Submit handler: call Capture if present; otherwise dry-run
+  async function submitLead(evt) {
+    evt.preventDefault();
+    const payload = buildPayload();
+    if (!validateLead(payload)) return;
+
+    // If Capture is available, pass along the exact field names they require.
+    try {
+      if (window.Capture && typeof window.Capture.submit === "function") {
+        // TODO: If the SDK expects a specific schema (e.g., { email, phone, scid, siteid, gmaid, ... }),
+        // map payload.lead/meta accordingly here.
+        await window.Capture.submit({
+          ...payload.lead,
+          scid: payload.meta.scid,
+          siteid: payload.meta.siteid,
+          gmaid: payload.meta.gmaid,
+          env: payload.meta.env,
+          channel: payload.lead.channel
+        });
+        alert("Lead submitted via Capture ✅");
+      } else {
+        console.log("%c[DRY-RUN] Would submit lead payload:", "color:#5aa3ff", payload);
+        alert("Dry-run: Capture SDK not found.\nSee console for payload.");
+      }
+    } catch (e) {
+      console.error("Submit error", e);
+      alert("Submit failed — check console for details.");
+    }
+  }
+
+  // Demo autofill
+  function fillDemo() {
+    $("#first_name").value = "Casey";
+    $("#last_name").value = "Tester";
+    $("#email").value = "casey.tester@example.com";
+    $("#phone").value = "555-867-5309";
+    $("#address1").value = "123 Demo Street";
+    $("#address2").value = "Apt 4B";
+    $("#city").value = "Phoenix";
+    $("#state").value = "AZ";
+    $("#postal_code").value = "85001";
+    $("#notes").value = "QA demo lead for LIPS ingestion.";
+    // ensure mirrors update
+    $("#xhr_form_email").value = $("#email").value;
+    $("#xhr_form_phone").value = $("#phone").value;
+  }
+
+  // Lead type toggle buttons
+  function wireLeadTypeToggles() {
+    $$('.seg .btn[data-leadtype]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        $$('.seg .btn[data-leadtype]').forEach(b => b.setAttribute("aria-pressed", "false"));
+        btn.setAttribute("aria-pressed", "true");
+        applyCfgToURL(getCfg());
+      });
+    });
+  }
+
+  // Buttons
+  $("#applyCfgBtn")?.addEventListener("click", reinitCapture);
+  $("#resetCfgBtn")?.addEventListener("click", () => {
+    Object.entries(DEFAULTS).forEach(([k,v]) => qs.set(k,v));
+    location.search = "?" + qs.toString(); // reload w/ defaults
+  });
+  $("#leadForm")?.addEventListener("submit", submitLead);
+  $("#fillDemo")?.addEventListener("click", fillDemo);
+
+  // Boot
+  hydrateFormFromQS();
+  wireMirrors();
+  wireLeadTypeToggles();
+  reinitCapture();
+
+  // Optional: auto-mirror on typing for email/phone
+  $("#email")?.addEventListener("input", () => $("#xhr_form_email").value = $("#email").value);
+  $("#phone")?.addEventListener("input", () => $("#xhr_form_phone").value = $("#phone").value);
+</script>
+</body>
+</html>
