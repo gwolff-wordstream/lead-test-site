@@ -153,9 +153,8 @@
           <option value="USA_123456">USA_123456 (example)</option>
           <option value="CAN_000001">CAN_000001 (example)</option>
         </select>
-        <div class="hint">You can add/remove options here as your test matrix evolves.</div>
       </div>
-      <div class="col-3">
+      <div class="col-2">
         <label for="cfg-env">environment</label>
         <select id="cfg-env">
           <option value="qa" selected>qa</option>
@@ -163,7 +162,7 @@
           <option value="prod">prod</option>
         </select>
       </div>
-      <div class="col-3" style="display:flex; align-items:flex-end; gap:8px;">
+      <div class="col-4" style="display:flex; align-items:flex-end; gap:8px;">
         <button class="btn" id="applyCfgBtn" title="Update URL & re-init capture">Apply config</button>
         <button class="btn ghost" id="resetCfgBtn" title="Reset to defaults">Reset</button>
       </div>
@@ -252,10 +251,6 @@
       </div>
     </div>
   </form>
-
-  <div class="footer">
-    Need another variant (e.g., call-only, chatbot-only, or different <span class="kbd">scid</span>/<span class="kbd">siteid</span>)? Duplicate this page and adjust defaults.
-  </div>
 </div>
 
 <!-- ===== Network Console (logs fetch + XHR) ===== -->
