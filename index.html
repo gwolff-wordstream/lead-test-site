@@ -32,6 +32,21 @@
       .seg .btn { padding:6px 10px; }
       .footer { opacity:.75; font-size:12px; text-align:center; margin-top:18px; }
   </style>
+  <style>
+      /* Pretty on/off switch */
+      .switch { display:inline-flex; align-items:center; gap:10px; }
+      .switch .label { font-size:12px; color:var(--muted); }
+      .switch input {
+          appearance:none; width:44px; height:24px; border-radius:999px;
+          background:#0e1730; border:1px solid #26365f; position:relative; cursor:pointer; outline:none;
+      }
+      .switch input::after {
+          content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+          background:#dbe7ff; transition:left .18s ease;
+      }
+      .switch input:checked { background:#173163; }
+      .switch input:checked::after { left:22px; }
+  </style>
 
   <!-- ========= Capture SDK Bootstrap (loads early) ========= -->
   <script>
@@ -111,9 +126,11 @@
         <button class="btn" id="applyCfgBtn" title="Update URL & re-init capture">Apply config</button>
         <button class="btn ghost" id="resetCfgBtn" title="Reset to defaults">Reset</button>
       </div>
-      <div class="col-12" style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-        <input type="checkbox" id="dryRun" checked />
-        <label for="dryRun" class="hint">Dry-run (log only, don’t create leads)</label>
+      <div class="col-12" style="display:flex;justify-content:flex-end;align-items:center;margin-top:4px;">
+        <div class="switch" title="When on, no lead is created; payload only logs.">
+          <span class="label">Dry-run</span>
+          <input type="checkbox" id="dryRun" />
+        </div>
       </div>
     </div>
     <div class="hr"></div>
@@ -279,6 +296,7 @@
     gmaid: "USA_172716",
     env: "qa",
     leadtype: "web", // web | call | chatbot
+    dryrun: "1"
   };
 
   function getCfg() {
@@ -288,6 +306,7 @@
       gmaid: $("#cfg-gmaid").value,
       env: $("#cfg-env").value,
       leadtype: document.querySelector('[data-leadtype][aria-pressed="true"]')?.dataset.leadtype || "web",
+      dryrun: $("#dryRun")?.checked ? "1" : "0"   // <-- new
     };
   }
 
@@ -312,6 +331,7 @@
     $("#cfg-siteid").value = cfg.siteid;
     $("#cfg-gmaid").value = cfg.gmaid;
     $("#cfg-env").value = cfg.env;
+    $("#dryRun").checked = cfg.dryrun === "1";
     // toggle buttons
     $$('.seg .btn[data-leadtype]').forEach(b => {
       b.setAttribute("aria-pressed", b.dataset.leadtype === cfg.leadtype ? "true" : "false");
