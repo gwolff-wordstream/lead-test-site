@@ -30,6 +30,32 @@
       .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0a1022; border:1px solid #1f2a44; padding:2px 6px; border-radius:6px; }
       .seg { display:flex; gap:8px; flex-wrap:wrap; }
       .seg .btn { padding:6px 10px; }
+      /* Lead-type pill selected state */
+      .seg .btn[data-leadtype][aria-pressed="true"] {
+          background: #38a030;
+          border-color: #2d7f27;
+          color: #0b1320;
+          box-shadow: 0 0 0 2px rgba(56,160,48,0.25) inset, 0 6px 18px rgba(56,160,48,0.25);
+          transition: background .15s ease, box-shadow .15s ease, transform .04s ease;
+      }
+      /* Slight press effect */
+      .seg .btn[data-leadtype][aria-pressed="true"]:active {
+          transform: translateY(1px);
+      }
+      /* Hover for unselected pills */
+      .seg .btn[data-leadtype][aria-pressed="false"]:hover {
+          border-color: #395694;
+          background: #0f1a33;
+      }
+      /* Keyboard focus ring */
+      .seg .btn[data-leadtype]:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 2px #0b1320, 0 0 0 4px #38a030;
+          border-color: #38a030;
+      }
+      .seg .btn[data-leadtype][aria-pressed="true"]:hover {
+          background: #30902a;
+      }
       .footer { opacity:.75; font-size:12px; text-align:center; margin-top:18px; }
   </style>
   <style>
@@ -232,7 +258,6 @@
   </div>
 </div>
 
-<!-- ===== Network Console (logs fetch + XHR) ===== -->
 <!-- ===== Network Console (logs fetch + XHR) ===== -->
 <div id="dbg" style="position:fixed;right:12px;bottom:56px;left:12px;background:#0b1020;border:1px solid #1f2a44;border-radius:10px;padding:10px;max-height:35vh;overflow:auto;font:12px ui-monospace,Menlo,monospace;color:#dbe7ff;z-index:9999;">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
