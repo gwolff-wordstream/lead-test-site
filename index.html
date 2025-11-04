@@ -111,6 +111,10 @@
         <button class="btn" id="applyCfgBtn" title="Update URL & re-init capture">Apply config</button>
         <button class="btn ghost" id="resetCfgBtn" title="Reset to defaults">Reset</button>
       </div>
+      <div class="col-12" style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+        <input type="checkbox" id="dryRun" checked />
+        <label for="dryRun" class="hint">Dry-run (log only, don’t create leads)</label>
+      </div>
     </div>
     <div class="hr"></div>
     <div class="row" style="align-items:center; justify-content:space-between;">
@@ -391,7 +395,9 @@
     if (!validateLead(payload)) return;
 
     try {
-      if (window.Capture && typeof window.Capture.submit === "function") {
+      const dry = $("#dryRun")?.checked;
+
+      if (!dry && window.Capture && typeof window.Capture.submit === "function") {
         await window.Capture.submit({
           ...payload.lead,
           scid: payload.meta.scid,
@@ -403,7 +409,7 @@
         alert("Lead submitted via Capture ✅");
       } else {
         console.log("%c[DRY-RUN] Would submit lead payload:", "color:#5aa3ff", payload);
-        alert("Dry-run: Capture SDK not found.\nSee console for payload.");
+        alert("Dry-run: no lead was created.\nSee console for payload.");
       }
     } catch (e) {
       console.error("Submit error", e);
