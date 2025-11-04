@@ -48,6 +48,21 @@
       .switch input:checked::after { left:22px; }
   </style>
 
+  <style>
+      /* Network console states */
+      #dbg.dbg-collapsed { max-height: 7vh !important; }
+      #dbg.dbg-hidden    { display: none !important; }
+
+      /* Floating toggle button */
+      #dbgToggle {
+          position: fixed; right: 12px; bottom: 12px; z-index: 10000;
+          background:#122049; border:1px solid #2a3e6f; color:#fff;
+          border-radius: 999px; padding: 8px 12px; cursor: pointer;
+          font: 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+          box-shadow: 0 6px 16px rgba(0,0,0,.35);
+      }
+  </style>
+
   <!-- ========= Capture SDK Bootstrap (loads early) ========= -->
   <script>
     (function () {
@@ -218,29 +233,74 @@
 </div>
 
 <!-- ===== Network Console (logs fetch + XHR) ===== -->
-<div id="dbg" style="position:fixed;right:12px;bottom:12px;left:12px;background:#0b1020;border:1px solid #1f2a44;border-radius:10px;padding:10px;max-height:35vh;overflow:auto;font:12px ui-monospace,Menlo,monospace;color:#dbe7ff;z-index:9999;">
-  <div style="display:flex;justify-content:space-between;align-items:center;">
+<!-- ===== Network Console (logs fetch + XHR) ===== -->
+<div id="dbg" style="position:fixed;right:12px;bottom:56px;left:12px;background:#0b1020;border:1px solid #1f2a44;border-radius:10px;padding:10px;max-height:35vh;overflow:auto;font:12px ui-monospace,Menlo,monospace;color:#dbe7ff;z-index:9999;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
     <strong>Network Console</strong>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button id="dbgCopy" style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Copy</button>
-      <button id="dbgClear" style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Clear</button>
+      <button id="dbgCollapse" style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Collapse</button>
+      <button id="dbgExpand"   style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Expand</button>
+      <button id="dbgCopy"     style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Copy</button>
+      <button id="dbgClear"    style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Clear</button>
+      <button id="dbgHide"     style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Hide</button>
     </div>
   </div>
   <pre id="dbgOut" style="white-space:pre-wrap;margin:8px 0 0;"></pre>
 </div>
+
+<!-- Floating toggle (appears when console hidden) -->
+<button id="dbgToggle" title="Show network console">Net</button>
+
 <script>
   (function(){
-    const out = document.getElementById('dbgOut');
+    const dbg   = document.getElementById('dbg');
+    const out   = document.getElementById('dbgOut');
+    const btnCopy  = document.getElementById('dbgCopy');
+    const btnClear = document.getElementById('dbgClear');
+    const btnHide  = document.getElementById('dbgHide');
+    const btnCol   = document.getElementById('dbgCollapse');
+    const btnExp   = document.getElementById('dbgExpand');
+    const btnToggle= document.getElementById('dbgToggle');
+
+    const saveState = (s) => { try { localStorage.setItem('dbg.state', s); } catch {} };
+    const loadState = ()   => { try { return localStorage.getItem('dbg.state') || 'open'; } catch { return 'open'; } };
+
+    function applyState(state){
+      dbg.classList.remove('dbg-collapsed','dbg-hidden');
+      if (state === 'hidden')   dbg.classList.add('dbg-hidden');
+      if (state === 'collapsed')dbg.classList.add('dbg-collapsed');
+      btnToggle.style.display = (state === 'hidden') ? 'block' : 'none';
+      saveState(state);
+    }
+
+    // header buttons
+    btnClear.onclick = () => out.textContent = '';
+    btnCopy.onclick  = async () => {
+      try { await navigator.clipboard.writeText(out.textContent); alert('Console copied'); } catch {}
+    };
+    btnHide.onclick  = () => applyState('hidden');
+    btnCol.onclick   = () => applyState('collapsed');
+    btnExp.onclick   = () => applyState('open');
+
+    // floating toggle
+    btnToggle.onclick = () => applyState('open');
+
+    // Keyboard shortcut: press ` (backtick) to toggle collapse/open
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '`' && !e.metaKey && !e.ctrlKey) {
+        const cur = loadState();
+        applyState(cur === 'collapsed' ? 'open' : 'collapsed');
+      }
+    });
+
+    // Logging helpers
     const log = (label, obj) => {
       try {
         out.textContent += `\n${label}\n` + JSON.stringify(obj, null, 2) + '\n';
         out.scrollTop = out.scrollHeight;
       } catch(e) { out.textContent += `\n${label} (unserializable)\n`; }
     };
-    document.getElementById('dbgClear').onclick = () => out.textContent = '';
-    document.getElementById('dbgCopy').onclick = async () => {
-      try { await navigator.clipboard.writeText(out.textContent); alert('Console copied'); } catch {}
-    };
+
     // Patch fetch
     const _fetch = window.fetch;
     window.fetch = async (...args) => {
@@ -258,6 +318,7 @@
         throw e;
       }
     };
+
     // Patch XHR
     const _xhr = window.XMLHttpRequest;
     function XHR(){
@@ -278,6 +339,11 @@
       return x;
     }
     window.XMLHttpRequest = XHR;
+
+    // Boot with last state
+    applyState(loadState());
+
+    // Expose log if you want to print custom stuff
     window.__dbglog = log;
   })();
 </script>
