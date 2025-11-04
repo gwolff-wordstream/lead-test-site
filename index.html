@@ -410,7 +410,7 @@
 
   function hydrateFormFromQS() {
     const cfg = { ...DEFAULTS };
-    ["scid","siteid","gmaid","env","leadtype"].forEach(k => {
+    ["scid","siteid","gmaid","env","leadtype","dryrun"].forEach(k => {
       if (qs.get(k)) cfg[k] = qs.get(k);
     });
     $("#cfg-scid").value = cfg.scid;
@@ -558,6 +558,10 @@
   });
   $("#leadForm")?.addEventListener("submit", submitLead);
   $("#fillDemo")?.addEventListener("click", fillDemo);
+  // Keep URL in sync when Dry-run is toggled
+  $("#dryRun")?.addEventListener("change", () => {
+    applyCfgToURL(getCfg());
+  });
 
   // Boot
   hydrateFormFromQS();
