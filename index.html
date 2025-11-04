@@ -32,7 +32,47 @@
       .seg .btn { padding:6px 10px; }
       .footer { opacity:.75; font-size:12px; text-align:center; margin-top:18px; }
   </style>
+
+  <!-- ========= Capture SDK Bootstrap (loads early) ========= -->
+  <script>
+    (function () {
+      const qs = new URLSearchParams(location.search);
+      const DEFAULTS = {
+        siteid: "427e4e5f-5317-42d8-825c-765b49e43028",
+        scid: "3871830",
+        gmaid: "USA_172716",
+        e: "qa"
+      };
+      const cfg = {
+        siteid: qs.get("siteid") || DEFAULTS.siteid,
+        scid:   qs.get("scid")   || DEFAULTS.scid,
+        gmaid:  qs.get("gmaid")  || DEFAULTS.gmaid,
+        e:      (qs.get("e") || DEFAULTS.e).toLowerCase()
+      };
+
+      // The legacy Capture script expects rl_siteid globally
+      window.rl_siteid = cfg.siteid;
+      // Expose other fields in case the SDK reads them
+      window.rl_scid   = cfg.scid;
+      window.rl_gmaid  = cfg.gmaid;
+
+      // Inject the QA (or prod) SDK over HTTPS to avoid mixed content on GitHub Pages
+      var s = document.createElement("script");
+      var host = (cfg.e === "qa" || cfg.e === "stage") ? "cdn-qa.rlets.com" : "cdn.rlets.com";
+      s.src = "https://" + host + "/capture_static/mms/mms.js?e=" + (cfg.e || "QA").toUpperCase();
+      s.async = true;
+      s.onload = function(){ console.log("[Capture SDK] loaded:", s.src); };
+      s.onerror = function(){ console.warn("[Capture SDK] failed to load:", s.src); };
+      document.head.appendChild(s);
+
+      // Expose for debugging
+      window.__captureBootstrap = { cfg, sdkSrc: s.src };
+      console.log("[Capture bootstrap]", window.__captureBootstrap);
+    })();
+  </script>
+  <!-- ======================================================== -->
 </head>
+
 <body>
 <div class="wrap">
   <!-- CONFIG PANEL -->
@@ -156,14 +196,71 @@
   </div>
 </div>
 
-<!-- =========================
-     CAPTURE BOOTSTRAP (PLACEHOLDER)
-     =========================
-     TODO: Paste the official Capture embed snippet here.
-     For example, if they provide a <script src="...capture-sdk.js">, include it,
-     and if they require window.Capture.init({ scid, siteid, gmaid, env }), call it from reinitCapture().
--->
-<!-- <script src="https://example.cdn/capture-sdk.min.js"></script> -->
+<!-- ===== Network Console (logs fetch + XHR) ===== -->
+<div id="dbg" style="position:fixed;right:12px;bottom:12px;left:12px;background:#0b1020;border:1px solid #1f2a44;border-radius:10px;padding:10px;max-height:35vh;overflow:auto;font:12px ui-monospace,Menlo,monospace;color:#dbe7ff;z-index:9999;">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <strong>Network Console</strong>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="dbgCopy" style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Copy</button>
+      <button id="dbgClear" style="background:#122049;border:1px solid #2a3e6f;color:#fff;border-radius:8px;padding:4px 8px;cursor:pointer;">Clear</button>
+    </div>
+  </div>
+  <pre id="dbgOut" style="white-space:pre-wrap;margin:8px 0 0;"></pre>
+</div>
+<script>
+  (function(){
+    const out = document.getElementById('dbgOut');
+    const log = (label, obj) => {
+      try {
+        out.textContent += `\n${label}\n` + JSON.stringify(obj, null, 2) + '\n';
+        out.scrollTop = out.scrollHeight;
+      } catch(e) { out.textContent += `\n${label} (unserializable)\n`; }
+    };
+    document.getElementById('dbgClear').onclick = () => out.textContent = '';
+    document.getElementById('dbgCopy').onclick = async () => {
+      try { await navigator.clipboard.writeText(out.textContent); alert('Console copied'); } catch {}
+    };
+    // Patch fetch
+    const _fetch = window.fetch;
+    window.fetch = async (...args) => {
+      const [input, init] = args;
+      log('→ fetch request', { url: (input&&input.url)||input, ...init });
+      try {
+        const res = await _fetch(...args);
+        const clone = res.clone();
+        let bodyText = '';
+        try { bodyText = await clone.text(); } catch {}
+        log('← fetch response', { url: (input&&input.url)||input, status: res.status, headers: Object.fromEntries(res.headers.entries()), body: bodyText?.slice(0, 4000) });
+        return res;
+      } catch (e) {
+        log('✖ fetch error', { url: (input&&input.url)||input, error: String(e) });
+        throw e;
+      }
+    };
+    // Patch XHR
+    const _xhr = window.XMLHttpRequest;
+    function XHR(){
+      const x = new _xhr();
+      let req = { method: '', url: '', headers: {} };
+      const origOpen = x.open;
+      const origSend = x.send;
+      const origSetHeader = x.setRequestHeader;
+      x.open = function(method, url, ...rest){ req.method = method; req.url = url; return origOpen.call(this, method, url, ...rest); };
+      x.setRequestHeader = function(k,v){ req.headers[k]=v; return origSetHeader.call(this,k,v); };
+      x.send = function(body){
+        log('→ xhr request', { ...req, body });
+        this.addEventListener('loadend', function(){
+          log('← xhr response', { url: req.url, status: x.status, response: (x.responseText||'').slice(0,4000) });
+        });
+        return origSend.call(this, body);
+      };
+      return x;
+    }
+    window.XMLHttpRequest = XHR;
+    window.__dbglog = log;
+  })();
+</script>
+<!-- ============================================ -->
 
 <script>
   // Small utility to read/write query params (so config survives refresh/share)
@@ -268,15 +365,16 @@
     const cfg = getCfg();
     applyCfgToURL(cfg);
     try {
-      // TODO: Replace with your SDK's real init/reinit call.
-      // Example (fictional):
-      // await window.Capture.init({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
+      // If the SDK exposes init/reinitialize, use it; otherwise it's auto-instrumented.
       if (window.Capture && typeof window.Capture.init === "function") {
         await window.Capture.init({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
         setStatus("Capture initialized", "ok");
       } else if (window.Capture && typeof window.Capture.reinitialize === "function") {
         await window.Capture.reinitialize({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
         setStatus("Capture reinitialized", "ok");
+      } else if (window.rl_siteid) {
+        // Legacy scripts often auto-init from rl_siteid + query params
+        setStatus("Capture script loaded (auto)", "ok");
       } else {
         setStatus("Capture SDK not found — dry-run mode", "warn");
       }
@@ -292,11 +390,8 @@
     const payload = buildPayload();
     if (!validateLead(payload)) return;
 
-    // If Capture is available, pass along the exact field names they require.
     try {
       if (window.Capture && typeof window.Capture.submit === "function") {
-        // TODO: If the SDK expects a specific schema (e.g., { email, phone, scid, siteid, gmaid, ... }),
-        // map payload.lead/meta accordingly here.
         await window.Capture.submit({
           ...payload.lead,
           scid: payload.meta.scid,
@@ -328,7 +423,6 @@
     $("#state").value = "AZ";
     $("#postal_code").value = "85001";
     $("#notes").value = "QA demo lead for LIPS ingestion.";
-    // ensure mirrors update
     $("#xhr_form_email").value = $("#email").value;
     $("#xhr_form_phone").value = $("#phone").value;
   }
@@ -359,7 +453,7 @@
   wireLeadTypeToggles();
   reinitCapture();
 
-  // Optional: auto-mirror on typing for email/phone
+  // Keep mirrors live
   $("#email")?.addEventListener("input", () => $("#xhr_form_email").value = $("#email").value);
   $("#phone")?.addEventListener("input", () => $("#xhr_form_phone").value = $("#phone").value);
 </script>
