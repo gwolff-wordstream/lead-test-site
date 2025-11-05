@@ -135,7 +135,32 @@
       .badge-show    { opacity:1; transform:translateY(0); }
   </style>
 
-  <!-- ========= Capture SDK Bootstrap (loads early) ========= -->
+  <script>
+    // Status badge helpers
+    const $status = document.getElementById('submitStatus');
+    let statusHideTimer;
+
+    function setStatusBadge(state, text, tooltip) {
+      clearTimeout(statusHideTimer);
+      const cls = ['badge', 'badge-show'];
+      if (state === 'pending') cls.push('badge-pending');
+      if (state === 'ok')      cls.push('badge-ok');
+      if (state === 'err')     cls.push('badge-err');
+      $status.className = cls.join(' ');
+      $status.textContent = text;
+      if (tooltip) $status.title = tooltip;
+
+      // auto-hide after 6s (except while pending)
+      if (state !== 'pending') {
+        statusHideTimer = setTimeout(() => {
+          $status.classList.add('badge-hidden');
+        }, 6000);
+      } else {
+        $status.classList.remove('badge-hidden');
+      }
+    }
+  </script>
+  <!-- ========= Capture SDK Bootstrap ========= -->
   <script>
     (function () {
       const qs = new URLSearchParams(location.search);
@@ -172,31 +197,7 @@
       console.log("[Capture bootstrap]", window.__captureBootstrap);
     })();
   </script>
-  <script>
-    // Status badge helpers
-    const $status = document.getElementById('submitStatus');
-    let statusHideTimer;
 
-    function setStatusBadge(state, text, tooltip) {
-      clearTimeout(statusHideTimer);
-      const cls = ['badge', 'badge-show'];
-      if (state === 'pending') cls.push('badge-pending');
-      if (state === 'ok')      cls.push('badge-ok');
-      if (state === 'err')     cls.push('badge-err');
-      $status.className = cls.join(' ');
-      $status.textContent = text;
-      if (tooltip) $status.title = tooltip;
-
-      // auto-hide after 6s (except while pending)
-      if (state !== 'pending') {
-        statusHideTimer = setTimeout(() => {
-          $status.classList.add('badge-hidden');
-        }, 6000);
-      } else {
-        $status.classList.remove('badge-hidden');
-      }
-    }
-  </script>
   <!-- ======================================================== -->
 </head>
 
