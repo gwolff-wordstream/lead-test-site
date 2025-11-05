@@ -583,6 +583,14 @@
 
     // Read config + form values
     const cfg = getCfg();
+
+    /** HARD STOP for prod right now -- need to figure out how to secure this if we want it available */
+    if ((cfg.env || '').toLowerCase() === 'prod') {
+      setStatusBadge('err', 'Blocked', 'Prod submissions are disabled on this test page');
+      alert('Submission blocked.\n\nThis page only allows QA/Stage. Set environment to "qa" or "stage".');
+      return;
+    }
+
     const first = $("#first_name").value.trim();
     const last  = $("#last_name").value.trim();
     const email = $("#email").value.trim();
