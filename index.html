@@ -194,7 +194,7 @@
         <button class="btn" data-leadtype="call" aria-pressed="false">Call</button>
         <button class="btn" data-leadtype="chatbot" aria-pressed="false">Chatbot</button>
       </div>
-      <div class="hint">Config persists in the page URL so you can share a link</div>
+      <div class="hint">Config persists in the page URL so you can share the link</div>
     </div>
   </div>
 
@@ -256,7 +256,7 @@
       </div>
 
       <div class="col-12 row" style="align-items:center; justify-content:space-between;">
-        <div class="hint">On submit, we’ll call the Capture API if available; otherwise we’ll log a payload (“dry-run”).</div>
+        <div class="hint">On submit, we call the Capture API if available; otherwise we log a payload (“dry-run”).</div>
         <div class="row" style="gap:8px;">
           <button type="button" class="btn" id="fillDemo">Fill demo data</button>
           <button type="submit" class="btn primary">Create Lead</button>
@@ -585,6 +585,64 @@
   // Keep mirrors live
   $("#email")?.addEventListener("input", () => $("#xhr_form_email").value = $("#email").value);
   $("#phone")?.addEventListener("input", () => $("#xhr_form_phone").value = $("#phone").value);
+</script>
+
+<!-- Tool Tips -->
+<script>
+  (function () {
+    const tips = [
+      // Config panel
+      ['#applyCfgBtn',
+        'Update the page URL with current config and re-initialize Capture. Does NOT submit a lead.'],
+      ['#resetCfgBtn',
+        'Reload the page with default config (clears the form).'],
+      ['#cfg-scid',
+        'SCID (campaign/source ID) used by Capture and routing.'],
+      ['#cfg-siteid',
+        'Site identifier (rl_siteid) recognized by Capture.'],
+      ['#cfg-gmaid',
+        'GMAID mapping used for routing (pick a test account).'],
+      ['#cfg-env',
+        'Target backend environment: qa, stage, or prod.'],
+      ['#dryRun',
+        'When ON, no lead is created—payload only logs in the console.'],
+
+      // Lead type pills
+      ['.seg .btn[data-leadtype="web"]',
+        'Send as a Web Form lead.'],
+      ['.seg .btn[data-leadtype="call"]',
+        'Send as a Call lead.'],
+      ['.seg .btn[data-leadtype="chatbot"]',
+        'Send as a Chatbot lead.'],
+
+      // Form actions
+      ['#fillDemo',
+        'Autofill the form with demo values (no submit).'],
+      ['#leadForm .btn.primary',
+        'Validate and submit the lead (respects Dry-run setting).'],
+
+      // Network console controls
+      ['#dbgCollapse',
+        'Collapse (shrink) the network console.'],
+      ['#dbgExpand',
+        'Expand the network console.'],
+      ['#dbgCopy',
+        'Copy the console output to your clipboard.'],
+      ['#dbgClear',
+        'Clear the console output.'],
+      ['#dbgHide',
+        'Hide the network console. Use the “Net” button or the backtick (`) key to show it again.'],
+      ['#dbgToggle',
+        'Show the network console.']
+    ];
+
+    tips.forEach(([sel, title]) => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.setAttribute('title', title);
+        if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', title);
+      });
+    });
+  })();
 </script>
 </body>
 </html>
