@@ -531,10 +531,19 @@
     const payload = buildPayload();
     if (!validateLead(payload)) return;
 
-    try {
-      const dry = $("#dryRun")?.checked;
+    const dry = $("#dryRun")?.checked;
+    const hasSDK = !!window.Capture;
+    const canSubmit = hasSDK && typeof window.Capture.submit === "function";
 
-      if (!dry && window.Capture && typeof window.Capture.submit === "function") {
+    // Helpful debug
+    console.log("[Capture SDK presence]", { hasSDK, keys: hasSDK ? Object.keys(window.Capture || {}) : [] });
+    if (!dry && !canSubmit) {
+      alert("Capture SDK is loaded but no submit() API is available. Falling back to DRY-RUN.\nCheck console for SDK keys.");
+    }
+
+    try {
+      if (!dry && canSubmit) {
+        // Real submit via SDK
         await window.Capture.submit({
           ...payload.lead,
           scid: payload.meta.scid,
@@ -546,7 +555,7 @@
         alert("Lead submitted via Capture ✅");
       } else {
         console.log("%c[DRY-RUN] Would submit lead payload:", "color:#5aa3ff", payload);
-        alert("Dry-run: no lead was created.\nSee console for payload.");
+        alert("DRY-RUN: no lead was created.\n(Reason: " + (dry ? "dry-run is ON" : "Capture.submit() not found") + ")\nSee console for payload.");
       }
     } catch (e) {
       console.error("Submit error", e);
