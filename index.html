@@ -136,7 +136,7 @@
   </style>
 
   <script>
-    // Status badge helpers (safe: element may not exist yet)
+    // Status badge helpers
     let __statusHideTimer;
     function setStatusBadge(state, text, tooltip) {
       const el = document.getElementById('submitStatus');  // <- lookup at call time
@@ -180,7 +180,6 @@
 
       // The legacy Capture script expects rl_siteid globally
       window.rl_siteid = cfg.siteid;
-      // Expose other fields in case the SDK reads them
       window.rl_scid   = cfg.scid;
       window.rl_gmaid  = cfg.gmaid;
 
@@ -276,13 +275,11 @@
       <div class="col-6">
         <label for="email">Email <span class="hint">(email OR phone required)</span></label>
         <input id="email" name="email" type="email" autocomplete="email" />
-        <!-- Mirror into xhr_form_email for Capture variants that read that key -->
         <input id="xhr_form_email" name="xhr_form_email" type="hidden" />
       </div>
       <div class="col-6">
         <label for="phone">Phone <span class="hint">(email OR phone required)</span></label>
         <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" />
-        <!-- Mirror into xhr_form_phone for Capture variants that read that key -->
         <input id="xhr_form_phone" name="xhr_form_phone" type="hidden" />
       </div>
 
@@ -343,7 +340,7 @@
 </div>
 
 <!-- Floating toggle (appears when console hidden) -->
-<button id="dbgToggle" title="Show network console">Net</button>
+<button id="dbgToggle" title="Show network console">Show Console</button>
 
 <script>
   (function(){
@@ -436,27 +433,39 @@
 
     // Boot with last state
     applyState(loadState());
-
-    // Expose log if you want to print custom stuff
     window.__dbglog = log;
   })();
 </script>
 <!-- ============================================ -->
 
 <script>
-  // Small utility to read/write query params (so config survives refresh/share)
+  // utility to read/write query params (so config survives refresh/share)
   const qs = new URLSearchParams(location.search);
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  // Default config (from Slack message)
+  // Default config
   const DEFAULTS = {
     scid: "3871830",
     siteid: "427e4e5f-5317-42d8-825c-765b49e43028",
     gmaid: "USA_172716",
     env: "qa",
-    leadtype: "web", // web | call | chatbot
+    leadtype: "web",
     dryrun: "1"
+  };
+
+  // Normalize our UI lead-type to LIPS-friendly event types
+  /*
+   These I believe are what is valid within LIPS?
+    {
+        "attribute": "event_type",
+        "message": "must be one of: call, chat, chat_sales, chat_service, chat_other, form, email, fpd, booking, lsa, diy_post, facebook, promotion, post, sms"
+    }
+   */
+  const leadtypeToEventType = {
+    web:     'form',
+    call:    'call',
+    chatbot: 'chat',
   };
 
   function getCfg() {
@@ -466,7 +475,7 @@
       gmaid: $("#cfg-gmaid").value,
       env: $("#cfg-env").value,
       leadtype: document.querySelector('[data-leadtype][aria-pressed="true"]')?.dataset.leadtype || "web",
-      dryrun: $("#dryRun")?.checked ? "1" : "0"   // <-- new
+      dryrun: $("#dryRun")?.checked ? "1" : "0"
     };
   }
 
@@ -499,7 +508,7 @@
     applyCfgToURL(cfg);
   }
 
-  // Mirror fields to xhr_form_* variants (guards against the mismatch issue you saw)
+  // Mirror fields to xhr_form_* variants
   function wireMirrors() {
     const mirrorPairs = [
       ["#email", "#xhr_form_email"],
@@ -511,7 +520,7 @@
     });
   }
 
-  // Build a canonical payload we can pass to Capture, or log in dry-run mode
+  // Build a canonical payload to pass to Capture, or log in dry-run mode
   function buildPayload() {
     const cfg = getCfg();
     const payload = {
@@ -527,7 +536,7 @@
         state: $("#state").value.trim(),
         postal_code: $("#postal_code").value.trim(),
         notes: $("#notes").value.trim(),
-        channel: cfg.leadtype, // "web" | "call" | "chatbot"
+        channel: cfg.leadtype,
       }
     };
     return payload;
@@ -549,7 +558,6 @@
     const cfg = getCfg();
     applyCfgToURL(cfg);
     try {
-      // If the SDK exposes init/reinitialize, use it; otherwise it's auto-instrumented.
       if (window.Capture && typeof window.Capture.init === "function") {
         await window.Capture.init({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
         setStatus("Capture initialized", "ok");
@@ -557,7 +565,7 @@
         await window.Capture.reinitialize({ scid: cfg.scid, siteid: cfg.siteid, gmaid: cfg.gmaid, env: cfg.env });
         setStatus("Capture reinitialized", "ok");
       } else if (window.rl_siteid) {
-        // Legacy scripts often auto-init from rl_siteid + query params
+        // Legacy scripts auto-init from rl_siteid + query params
         setStatus("Capture script loaded (auto)", "ok");
       } else {
         setStatus("Capture SDK not found — dry-run mode", "warn");
@@ -571,17 +579,26 @@
   // Submit handler: call Capture if present; otherwise dry-run
   async function submitLead(evt) {
     evt.preventDefault();
-    console.log('[submitLead] fired');
     setStatusBadge('pending', 'Submitting…', 'Sending payload to Capture');
 
     // Read config + form values
-    const cfg = getCfg(); // uses your existing helper (scid, siteid, gmaid, env, leadtype, dryrun)
+    const cfg = getCfg();
     const first = $("#first_name").value.trim();
     const last  = $("#last_name").value.trim();
     const email = $("#email").value.trim();
     const phone = $("#phone").value.trim();
+    const eventType = leadtypeToEventType[cfg.leadtype] || 'form';
 
-    // Require email OR phone (unchanged)
+    if (cfg.dryrun === "1") {
+      const demo = buildPayload();
+      demo.meta.event_type = eventType;
+
+      setStatusBadge('ok', 'Dry-run only', 'Payload logged; no network request made');
+      (window.__dbglog || console.log)('[dry-run payload]', demo);
+      return;
+    }
+
+    // Require email OR phone
     if (!email && !phone) {
       alert("Please provide at least an Email OR a Phone number.");
       return;
@@ -607,10 +624,11 @@
       country: "",                           // n/a
       postal___required: $("#postal_code").value.trim(),
       message: $("#notes").value.trim(),
-      // the demo page adds some extras; harmless to include empty:
       campaign_id: "",
       campaign_name: "",
-      submit_button: "SUBMIT"
+      submit_button: "SUBMIT",
+      event_type: eventType,
+      lead_type:  cfg.leadtype,
     }).toString();
 
     // Build the JSON wrapper like the original
@@ -644,15 +662,13 @@
       postbody,
       hidden_fields: "campaign_id,campaign_name,submit_button",
       rl_eid: "trackPost-" + Math.random().toString(36).slice(2, 10),
-      version: captureVersion
+      version: captureVersion,
+      event_type_hint: eventType
     };
 
-    // POST to the same host pattern as the original
-    //     (siteid as subdomain + qa15.rlets.com)
+    // POST
     const host = `${cfg.siteid}.qa15.rlets.com`;
     const url = `https://${host}/api/v1/posts`;
-
-    console.log('[submitLead] POST', url);
 
     try {
       const res = await fetch(url, {
@@ -664,7 +680,6 @@
       // The endpoint often returns empty/204-ish; treat 2xx as success
       if (res.ok) {
         setStatusBadge('ok', 'Success', 'Capture accepted the lead (HTTP ' + res.status + ')');
-        alert("Lead submitted to Capture ✅");
       } else {
         setStatusBadge('err', 'Failed', 'See console for details');
         const text = await res.text().catch(() => "");
@@ -714,7 +729,6 @@
     Object.entries(DEFAULTS).forEach(([k,v]) => qs.set(k,v));
     location.search = "?" + qs.toString(); // reload w/ defaults
   });
-  $("#leadForm")?.addEventListener("submit", submitLead);
   $("#fillDemo")?.addEventListener("click", fillDemo);
   // Keep URL in sync when Dry-run is toggled
   $("#dryRun")?.addEventListener("change", () => {
