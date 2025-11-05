@@ -136,30 +136,31 @@
   </style>
 
   <script>
-    // Status badge helpers
-    const $status = document.getElementById('submitStatus');
-    let statusHideTimer;
-
+    // Status badge helpers (safe: element may not exist yet)
+    let __statusHideTimer;
     function setStatusBadge(state, text, tooltip) {
-      clearTimeout(statusHideTimer);
+      const el = document.getElementById('submitStatus');  // <- lookup at call time
+      if (!el) { console.warn('[status] #submitStatus not found yet'); return; }
+
+      clearTimeout(__statusHideTimer);
+
       const cls = ['badge', 'badge-show'];
       if (state === 'pending') cls.push('badge-pending');
       if (state === 'ok')      cls.push('badge-ok');
       if (state === 'err')     cls.push('badge-err');
-      $status.className = cls.join(' ');
-      $status.textContent = text;
-      if (tooltip) $status.title = tooltip;
 
-      // auto-hide after 6s (except while pending)
+      el.className = cls.join(' ');
+      el.textContent = text;
+      if (tooltip) el.title = tooltip;
+
       if (state !== 'pending') {
-        statusHideTimer = setTimeout(() => {
-          $status.classList.add('badge-hidden');
-        }, 6000);
+        __statusHideTimer = setTimeout(() => { el.classList.add('badge-hidden'); }, 6000);
       } else {
-        $status.classList.remove('badge-hidden');
+        el.classList.remove('badge-hidden');
       }
     }
   </script>
+
   <!-- ========= Capture SDK Bootstrap ========= -->
   <script>
     (function () {
@@ -570,9 +571,10 @@
   // Submit handler: call Capture if present; otherwise dry-run
   async function submitLead(evt) {
     evt.preventDefault();
+    console.log('[submitLead] fired');
     setStatusBadge('pending', 'Submitting…', 'Sending payload to Capture');
 
-    // 1) Read config + form values
+    // Read config + form values
     const cfg = getCfg(); // uses your existing helper (scid, siteid, gmaid, env, leadtype, dryrun)
     const first = $("#first_name").value.trim();
     const last  = $("#last_name").value.trim();
@@ -585,10 +587,9 @@
       return;
     }
 
-    // 2) Build the URL-encoded postbody exactly like the original
+    // Build the URL-encoded postbody exactly like the original
     const postbody = new URLSearchParams({
       // Use the exact key names the original expects:
-      // (include only what we have in our form; blanks are fine)
       company___required: "",                // no company field in our UI
       address1___required: $("#address1").value.trim(),
       email___required: email,
@@ -612,13 +613,14 @@
       submit_button: "SUBMIT"
     }).toString();
 
-    // 3) Build the JSON wrapper like the original
+    // Build the JSON wrapper like the original
+    // TODO GSW -- is this correct
     const captureVersion = "4fed22fa9901d7d6a11e2f92f6fb1bbd593dd039"; // same as original
     const nowHref = location.href;
     const ref = document.referrer || nowHref;
 
     const payload = {
-      global_master_advertiser_id: cfg.gmaid || "USA_172716", // GMAID
+      global_master_advertiser_id: cfg.gmaid || "USA_172716",
       page_name: "",
       fname: nowHref,
       referrer: ref,
@@ -630,8 +632,8 @@
       tc: "",
       kw: "",
       pub_cr_id: "",
-      campaign_id: "",           // optional
-      master_campaign_id: "",    // optional
+      campaign_id: "",
+      master_campaign_id: "",
       referrer_source: "DIRECT",
       vendor_transaction_id: "",
       id_creative_resource: "",
@@ -645,10 +647,12 @@
       version: captureVersion
     };
 
-    // 4) POST to the same host pattern as the original
+    // POST to the same host pattern as the original
     //     (siteid as subdomain + qa15.rlets.com)
     const host = `${cfg.siteid}.qa15.rlets.com`;
     const url = `https://${host}/api/v1/posts`;
+
+    console.log('[submitLead] POST', url);
 
     try {
       const res = await fetch(url, {
