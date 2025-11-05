@@ -118,6 +118,21 @@
           border-radius:999px;padding:8px 12px;cursor:pointer;font:12px ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
           box-shadow:0 6px 16px rgba(0,0,0,.35);
       }
+
+      /* Status badge */
+      .badge {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:6px 10px; border-radius:999px; font-size:12px; font-weight:600;
+          border:1px solid transparent; transition:opacity .18s ease, transform .12s ease;
+      }
+      .badge::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+
+      .badge-pending { color:#f39c12; background:#1e1606; border-color:#a06d10; }
+      .badge-ok      { color:#2ecc71; background:#0f1f16; border-color:#1b8e52; }
+      .badge-err     { color:#e74c3c; background:#2a0f0d; border-color:#b13b30; }
+
+      .badge-hidden  { opacity:0; pointer-events:none; transform:translateY(-2px); }
+      .badge-show    { opacity:1; transform:translateY(0); }
   </style>
 
   <!-- ========= Capture SDK Bootstrap (loads early) ========= -->
@@ -156,6 +171,31 @@
       window.__captureBootstrap = { cfg, sdkSrc: s.src };
       console.log("[Capture bootstrap]", window.__captureBootstrap);
     })();
+  </script>
+  <script>
+    // Status badge helpers
+    const $status = document.getElementById('submitStatus');
+    let statusHideTimer;
+
+    function setStatusBadge(state, text, tooltip) {
+      clearTimeout(statusHideTimer);
+      const cls = ['badge', 'badge-show'];
+      if (state === 'pending') cls.push('badge-pending');
+      if (state === 'ok')      cls.push('badge-ok');
+      if (state === 'err')     cls.push('badge-err');
+      $status.className = cls.join(' ');
+      $status.textContent = text;
+      if (tooltip) $status.title = tooltip;
+
+      // auto-hide after 6s (except while pending)
+      if (state !== 'pending') {
+        statusHideTimer = setTimeout(() => {
+          $status.classList.add('badge-hidden');
+        }, 6000);
+      } else {
+        $status.classList.remove('badge-hidden');
+      }
+    }
   </script>
   <!-- ======================================================== -->
 </head>
@@ -276,6 +316,7 @@
       <div class="col-12 row" style="align-items:center; justify-content:space-between;">
         <div class="hint">On submit, we call the Capture API if available; otherwise we log a payload (“dry-run”).</div>
         <div class="row" style="gap:8px;">
+          <span id="submitStatus" class="badge badge-hidden" aria-live="polite" title="Submission status"></span>
           <button type="button" class="btn" id="fillDemo">Fill demo data</button>
           <button type="submit" class="btn primary">Create Lead</button>
         </div>
@@ -528,40 +569,112 @@
   // Submit handler: call Capture if present; otherwise dry-run
   async function submitLead(evt) {
     evt.preventDefault();
-    const payload = buildPayload();
-    if (!validateLead(payload)) return;
+    setStatusBadge('pending', 'Submitting…', 'Sending payload to Capture');
 
-    const dry = $("#dryRun")?.checked;
-    const hasSDK = !!window.Capture;
-    const canSubmit = hasSDK && typeof window.Capture.submit === "function";
+    // 1) Read config + form values
+    const cfg = getCfg(); // uses your existing helper (scid, siteid, gmaid, env, leadtype, dryrun)
+    const first = $("#first_name").value.trim();
+    const last  = $("#last_name").value.trim();
+    const email = $("#email").value.trim();
+    const phone = $("#phone").value.trim();
 
-    // Helpful debug
-    console.log("[Capture SDK presence]", { hasSDK, keys: hasSDK ? Object.keys(window.Capture || {}) : [] });
-    if (!dry && !canSubmit) {
-      alert("Capture SDK is loaded but no submit() API is available. Falling back to DRY-RUN.\nCheck console for SDK keys.");
+    // Require email OR phone (unchanged)
+    if (!email && !phone) {
+      alert("Please provide at least an Email OR a Phone number.");
+      return;
     }
 
+    // 2) Build the URL-encoded postbody exactly like the original
+    const postbody = new URLSearchParams({
+      // Use the exact key names the original expects:
+      // (include only what we have in our form; blanks are fine)
+      company___required: "",                // no company field in our UI
+      address1___required: $("#address1").value.trim(),
+      email___required: email,
+      first_name___required: first,
+      title___required: "",                  // no title field in our UI
+      last_name___required: last,
+      phone___required: phone,
+      phone_work___required: "",             // n/a
+      phone_mobile___required: "",           // n/a
+      phone_home___required: "",             // n/a
+      address_2: $("#address2").value.trim(),
+      city___required: $("#city").value.trim(),
+      // their sample had a weird "state:" key once; we’ll use the common one:
+      state: $("#state").value.trim(),
+      country: "",                           // n/a
+      postal___required: $("#postal_code").value.trim(),
+      message: $("#notes").value.trim(),
+      // the demo page adds some extras; harmless to include empty:
+      campaign_id: "",
+      campaign_name: "",
+      submit_button: "SUBMIT"
+    }).toString();
+
+    // 3) Build the JSON wrapper like the original
+    const captureVersion = "4fed22fa9901d7d6a11e2f92f6fb1bbd593dd039"; // same as original
+    const nowHref = location.href;
+    const ref = document.referrer || nowHref;
+
+    const payload = {
+      global_master_advertiser_id: cfg.gmaid || "USA_172716", // GMAID
+      page_name: "",
+      fname: nowHref,
+      referrer: ref,
+      capture_version: captureVersion,
+      utm_data: "",
+      ecid: "",
+      ohid: "",
+      scid: cfg.scid,
+      tc: "",
+      kw: "",
+      pub_cr_id: "",
+      campaign_id: "",           // optional
+      master_campaign_id: "",    // optional
+      referrer_source: "DIRECT",
+      vendor_transaction_id: "",
+      id_creative_resource: "",
+      visitor_id: (window.Capture && window.Capture.getVisitorId && window.Capture.getVisitorId()) || "",
+      visit_id: (window.Capture && window.Capture.getVisitId && window.Capture.getVisitId()) || "",
+      referrer_type: "DIRECT",
+      formUri: nowHref,          // original used page URL here
+      postbody,
+      hidden_fields: "campaign_id,campaign_name,submit_button",
+      rl_eid: "trackPost-" + Math.random().toString(36).slice(2, 10),
+      version: captureVersion
+    };
+
+    // 4) POST to the same host pattern as the original
+    //     (siteid as subdomain + qa15.rlets.com)
+    const host = `${cfg.siteid}.qa15.rlets.com`;
+    const url = `https://${host}/api/v1/posts`;
+
     try {
-      if (!dry && canSubmit) {
-        // Real submit via SDK
-        await window.Capture.submit({
-          ...payload.lead,
-          scid: payload.meta.scid,
-          siteid: payload.meta.siteid,
-          gmaid: payload.meta.gmaid,
-          env: payload.meta.env,
-          channel: payload.lead.channel
-        });
-        alert("Lead submitted via Capture ✅");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      // The endpoint often returns empty/204-ish; treat 2xx as success
+      if (res.ok) {
+        setStatusBadge('ok', 'Success', 'Capture accepted the lead (HTTP ' + res.status + ')');
+        alert("Lead submitted to Capture ✅");
       } else {
-        console.log("%c[DRY-RUN] Would submit lead payload:", "color:#5aa3ff", payload);
-        alert("DRY-RUN: no lead was created.\n(Reason: " + (dry ? "dry-run is ON" : "Capture.submit() not found") + ")\nSee console for payload.");
+        setStatusBadge('err', 'Failed', 'See console for details');
+        const text = await res.text().catch(() => "");
+        console.error("Capture submit non-OK", res.status, text);
+        alert(`Submit returned ${res.status} — check console for details.`);
       }
     } catch (e) {
-      console.error("Submit error", e);
+      console.error("Capture submit failed", e);
       alert("Submit failed — check console for details.");
     }
   }
+
+  // Re-wire the handler
+  $("#leadForm")?.removeEventListener("submit", submitLead);
+  $("#leadForm")?.addEventListener("submit", submitLead);
 
   // Demo autofill
   function fillDemo() {
