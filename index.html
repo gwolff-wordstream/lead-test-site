@@ -210,20 +210,32 @@
       <span id="captureStatus" class="status warn">Capture SDK not initialized</span>
     </div>
     <div class="grid" style="margin-top:10px;">
+      <!-- SCID -->
       <div class="col-4">
         <label for="cfg-scid">scid</label>
-        <input id="cfg-scid" placeholder="e.g., 3871830" />
+        <input id="cfg-scid" list="scid-presets" placeholder="e.g., 3871830" />
+        <datalist id="scid-presets">
+          <option value="3871830"></option>
+          <option value="4870939"></option>
+        </datalist>
       </div>
+      <!-- siteid -->
       <div class="col-8">
         <label for="cfg-siteid">siteid</label>
-        <input id="cfg-siteid" placeholder="e.g., 427e4e5f-5317-42d8-825c-765b49e43028" />
+        <input id="cfg-siteid" list="siteid-presets" placeholder="e.g., 427e4e5f-5317-42d8-825c-765b49e43028" />
+        <datalist id="siteid-presets">
+          <option value="427e4e5f-5317-42d8-825c-765b49e43028"></option>
+          <option value="8a0749e8-18f1-47b1-86df-64660c07e822"></option>
+        </datalist>
       </div>
+      <!-- GMAID -->
       <div class="col-6">
         <label for="cfg-gmaid">gmaid</label>
-        <select id="cfg-gmaid">
-          <option value="USA_172716" selected>USA_172716 (default)</option>
-          <option value="USA_636409">USA_636409</option>
-        </select>
+        <input id="cfg-gmaid" list="gmaid-presets" placeholder="e.g., USA_172716" />
+        <datalist id="gmaid-presets">
+          <option value="USA_172716"></option>
+          <option value="USA_636409"></option>
+        </datalist>
       </div>
       <div class="col-2">
         <label for="cfg-env">environment</label>
@@ -506,6 +518,11 @@
     });
     applyCfgToURL(cfg);
   }
+
+  ['#cfg-gmaid','#cfg-scid','#cfg-siteid','#cfg-env'].forEach(sel => {
+    document.querySelector(sel)?.addEventListener('change', () => applyCfgToURL(getCfg()));
+    document.querySelector(sel)?.addEventListener('input',  () => applyCfgToURL(getCfg()));
+  });
 
   // Mirror fields to xhr_form_* variants
   function wireMirrors() {
