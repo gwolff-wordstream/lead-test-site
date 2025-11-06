@@ -119,6 +119,27 @@
           box-shadow:0 6px 16px rgba(0,0,0,.35);
       }
 
+      /* Combo box styling */
+      .combo{ position:relative; display:flex; align-items:center; }
+      .combo-input{ flex:1; padding-right:34px; } /* room for the button */
+      .combo-btn{
+          position:absolute; right:6px; top:50%; transform:translateY(-50%);
+          border:1px solid #2a3e6f; background:#0f1a33; color:#dbe7ff;
+          border-radius:8px; padding:2px 8px; cursor:pointer; font-weight:600;
+      }
+      .combo-btn:hover{ border-color:#395694; }
+      .combo-list{
+          position:absolute; top:calc(100% + 6px); left:0; right:0;
+          background:var(--panel); border:1px solid #2a3e6f; border-radius:10px;
+          box-shadow:0 8px 26px rgba(0,0,0,.45); max-height:220px; overflow:auto;
+          margin:0; padding:6px; list-style:none; z-index:9999;
+      }
+      .combo-list[hidden]{ display:none; }
+      .combo-item{
+          padding:8px 10px; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      }
+      .combo-item:hover, .combo-item[aria-selected="true"]{ background:#0f1a33; }
+
       /* Status badge */
       .badge {
           display:inline-flex; align-items:center; gap:6px;
@@ -197,8 +218,6 @@
       console.log("[Capture bootstrap]", window.__captureBootstrap);
     })();
   </script>
-
-  <!-- ======================================================== -->
 </head>
 
 <body>
@@ -213,30 +232,31 @@
       <!-- SCID -->
       <div class="col-4">
         <label for="cfg-scid">scid</label>
-        <input id="cfg-scid" list="scid-presets" placeholder="e.g., 3871830" />
-        <datalist id="scid-presets">
-          <option value="3871830"></option>
-          <option value="4870939"></option>
-        </datalist>
+        <div class="combo" data-key="scid">
+          <input id="cfg-scid" class="combo-input" placeholder="e.g., 3871830" />
+          <button type="button" class="combo-btn" aria-label="Show presets">▾</button>
+          <ul class="combo-list" role="listbox" hidden></ul>
+        </div>
       </div>
       <!-- siteid -->
       <div class="col-8">
         <label for="cfg-siteid">siteid</label>
-        <input id="cfg-siteid" list="siteid-presets" placeholder="e.g., 427e4e5f-5317-42d8-825c-765b49e43028" />
-        <datalist id="siteid-presets">
-          <option value="427e4e5f-5317-42d8-825c-765b49e43028"></option>
-          <option value="8a0749e8-18f1-47b1-86df-64660c07e822"></option>
-        </datalist>
+        <div class="combo" data-key="siteid">
+          <input id="cfg-siteid" class="combo-input" placeholder="e.g., 427e4e5f-..." />
+          <button type="button" class="combo-btn" aria-label="Show presets">▾</button>
+          <ul class="combo-list" role="listbox" hidden></ul>
+        </div>
       </div>
       <!-- GMAID -->
       <div class="col-6">
         <label for="cfg-gmaid">gmaid</label>
-        <input id="cfg-gmaid" list="gmaid-presets" placeholder="e.g., USA_172716" />
-        <datalist id="gmaid-presets">
-          <option value="USA_172716"></option>
-          <option value="USA_636409"></option>
-        </datalist>
+        <div class="combo" data-key="gmaid">
+          <input id="cfg-gmaid" class="combo-input" placeholder="e.g., USA_172716" />
+          <button type="button" class="combo-btn" aria-label="Show presets">▾</button>
+          <ul class="combo-list" role="listbox" hidden></ul>
+        </div>
       </div>
+      <!-- ENV -->
       <div class="col-2">
         <label for="cfg-env">environment</label>
         <select id="cfg-env">
@@ -519,7 +539,8 @@
     applyCfgToURL(cfg);
   }
 
-  ['#cfg-gmaid','#cfg-scid','#cfg-siteid','#cfg-env'].forEach(sel => {
+  // Only fields that don't have their own internal sync logic
+  ['#cfg-env'].forEach(sel => {
     document.querySelector(sel)?.addEventListener('change', () => applyCfgToURL(getCfg()));
     document.querySelector(sel)?.addEventListener('input',  () => applyCfgToURL(getCfg()));
   });
@@ -704,6 +725,7 @@
       // The endpoint often returns empty/204-ish; treat 2xx as success
       if (res.ok) {
         setStatusBadge('ok', 'Success', 'Capture accepted the lead (HTTP ' + res.status + ')');
+        rememberPresets();
       } else {
         setStatusBadge('err', 'Failed', 'See console for details');
         const text = await res.text().catch(() => "");
@@ -768,6 +790,148 @@
   // Keep mirrors live
   $("#email")?.addEventListener("input", () => $("#xhr_form_email").value = $("#email").value);
   $("#phone")?.addEventListener("input", () => $("#xhr_form_phone").value = $("#phone").value);
+</script>
+
+<script>
+  /* Manage combo boxes -- save inputs for gmaid/scid/siteid to local storage for custom drop downs
+   * Preset sources, will be merged with per-browser memory.
+   */
+  const SEED_PRESETS = {
+    gmaid:  ['USA_172716','USA_636409'],
+    scid:   ['3871830','4870939'],
+    siteid: ['427e4e5f-5317-42d8-825c-765b49e43028','8a0749e8-18f1-47b1-86df-64660c07e822'],
+  };
+
+  const PRESET_KEYS = {
+    gmaid:  'presets:gmaid',
+    scid:   'presets:scid',
+    siteid: 'presets:siteid',
+  };
+
+  function loadPresets(key, seed=[]) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      const all = [...seed, ...saved];
+      return Array.from(new Set(all)); // de-dupe
+    } catch { return seed; }
+  }
+
+  function savePreset(key, value) {
+    const v = (value||'').trim(); if (!v) return;
+    const cur = loadPresets(key);
+    if (!cur.includes(v)) {
+      cur.unshift(v);
+      try { localStorage.setItem(key, JSON.stringify(cur.slice(0, 20))); } catch {}
+    }
+  }
+
+  function closeAllCombos(exceptEl){
+    document.querySelectorAll('.combo-list').forEach(ul=>{
+      if (!exceptEl || ul !== exceptEl) ul.hidden = true;
+    });
+  }
+
+  function rememberPresets() {
+    const cfg = getCfg();
+    savePreset(PRESET_KEYS.gmaid,  cfg.gmaid);
+    savePreset(PRESET_KEYS.scid,   cfg.scid);
+    savePreset(PRESET_KEYS.siteid, cfg.siteid);
+  }
+
+  function buildCombo(root, presets) {
+    const input = root.querySelector('.combo-input');
+    const btn   = root.querySelector('.combo-btn');
+    const list  = root.querySelector('.combo-list');
+
+    function render(filter=''){
+      list.innerHTML = '';
+      const f = filter.trim().toLowerCase();
+      const items = presets.filter(p => !f || p.toLowerCase().includes(f));
+      if (items.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'combo-item';
+        li.textContent = 'No matches';
+        li.setAttribute('aria-disabled','true');
+        li.setAttribute('role','option');
+        list.appendChild(li);
+        return;
+      }
+      items.forEach((preset, i) => {
+        const li = document.createElement('li');
+        li.className = 'combo-item';
+        li.textContent = preset;
+        li.tabIndex = -1;
+        li.setAttribute('role','option');
+        li.setAttribute('aria-selected', i === 0 ? 'true' : 'false'); // select first by default
+        li.addEventListener('click', () => {
+          input.value = preset;
+          list.hidden = true;
+          input.dispatchEvent(new Event('input'));
+          input.dispatchEvent(new Event('change'));
+          input.focus();
+        });
+        list.appendChild(li);
+      });
+    }
+
+    function open(){
+      render(input.value);
+      closeAllCombos(list);
+      list.hidden = false;
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (list.hidden) open(); else list.hidden = true;
+    });
+
+    input.addEventListener('input', () => {
+      render(input.value);
+      applyCfgToURL(getCfg());
+    });
+
+    input.addEventListener('focus', open);
+
+    input.addEventListener('keydown', (e) => {
+      if (list.hidden) return;
+      const items = Array.from(list.querySelectorAll('.combo-item:not([aria-disabled])'));
+      const idx = items.findIndex(li => li.getAttribute('aria-selected') === 'true');
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const nextIndex = e.key === 'ArrowDown' ? Math.min(idx + 1, items.length - 1)
+          : Math.max(idx - 1, 0);
+        items.forEach(li => li.setAttribute('aria-selected','false'));
+        items[nextIndex].setAttribute('aria-selected','true');
+        items[nextIndex].scrollIntoView({block:'nearest'});
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        const cur = items[idx] || items[0];
+        if (cur) cur.click();
+        if (e.key === 'Enter') e.preventDefault(); // keep focus
+      } else if (e.key === 'Escape') {
+        list.hidden = true;
+      }
+    });
+
+    // Close when clicking elsewhere
+    document.addEventListener('click', () => { list.hidden = true; }, { passive: true });
+
+    // Initial paint
+    render('');
+  }
+
+  // Build the three combos + seed from localStorage
+  (function initCombos(){
+    const combos = document.querySelectorAll('.combo');
+    combos.forEach(root => {
+      const key = root.getAttribute('data-key');
+      if (!key) return;
+      const presets = loadPresets(PRESET_KEYS[key], SEED_PRESETS[key] || []);
+      buildCombo(root, presets);
+    });
+
+    document.getElementById('applyCfgBtn')?.addEventListener('click', rememberPresets);
+  })();
 </script>
 
 <!-- Tool Tips -->
