@@ -838,10 +838,12 @@
     savePreset(PRESET_KEYS.siteid, cfg.siteid);
   }
 
-  function buildCombo(root, presets) {
+  function buildCombo(root, initialPresets) {
     const input = root.querySelector('.combo-input');
     const btn   = root.querySelector('.combo-btn');
     const list  = root.querySelector('.combo-list');
+    const key   = root.getAttribute('data-key'); // 'gmaid' | 'scid' | 'siteid'
+    let presets = initialPresets.slice();
 
     function render(filter=''){
       list.innerHTML = '';
@@ -875,7 +877,9 @@
     }
 
     function open(){
-      render(input.value);
+      // refresh from localStorage each time the menu opens
+      presets = loadPresets(PRESET_KEYS[key], SEED_PRESETS[key] || []);
+      render('');                // show all on open
       closeAllCombos(list);
       list.hidden = false;
     }
